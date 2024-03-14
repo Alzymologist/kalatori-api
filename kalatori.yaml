@@ -1,0 +1,76 @@
+openapi: 3.1.0
+info:
+  title: Kalatori — non-custodial Polkadot payments gateway
+  description: |-
+    Kalatori daemon API. Allows any compatible eCommerce plugin to create and monitor the payment status of its orders.
+
+    Each order is used to derive a unique Polkadot address (using account derivation paths), which is used to map payment to the particular order ID.
+
+  version: 0.1.0
+externalDocs:
+  description: Some other document describing possible API
+  url: https://github.com/Alzymologist/Kalatori-backend/blob/main/docs/DOCS.md
+tags:
+  - name: order
+    description: The only path existing in the current API version
+paths:
+  /order/{orderId}/price/{amount}:
+    get:
+      tags:
+        - order
+      summary: Derive an address and start waiting for the amount
+      description: This endpoint idempotently derives and address and initializes payment monitoring for the specified amount
+      parameters:
+        - name: orderId
+          in: path
+          description: ID of order to track payments for
+          required: true
+          schema:
+            type: string
+        - name: amount
+          in: path
+          description: Amount (in Plancks) to be paid. After reaching this amount Kalatori will initiate a payout to the destination address and will report the order as paid to the shop
+          required: true
+          schema:
+            type: number
+      responses:
+        '201':
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerResponse'
+              example: {
+                "pay_account": "0x70fd572d821ef38c4d354516353ec591fbd77e91fc4caf61c197d90b0f8ccd12",
+                "price": 100000000000,
+                "recipient": "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
+                "order": "myStore_1337",
+                "wss": "wss://node-polkadot.zymologia.fi:443",
+                "mul": 10,
+                "result": "waiting",
+                "version": "0.1.0"
+              }
+ 
+components:
+  schemas:
+    ServerResponse:
+      type: object
+      properties:
+        pay_account:
+          type: string
+        price:
+          type: integer
+          format: int64
+        recipient:
+          type: string
+        order:
+          type: string
+        wss:
+          type: url
+        mul:
+          type: integer
+          format: u8
+        result:
+          type: string
+        version:
+          type: string
