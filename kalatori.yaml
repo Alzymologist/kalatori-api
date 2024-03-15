@@ -1,4 +1,4 @@
-openapi: 3.1.0
+openapi: 3.0.3
 info:
   title: Kalatori — non-custodial Polkadot payments gateway
   description: |-
@@ -6,20 +6,21 @@ info:
 
     Each order is used to derive a unique Polkadot address (using account derivation paths), which is used to map payment to the particular order ID.
 
-  version: 0.1.0
-externalDocs:
-  description: Some other document describing possible API
-  url: https://github.com/Alzymologist/Kalatori-backend/blob/main/docs/DOCS.md
-tags:
-  - name: order
-    description: The only path existing in the current API version
+  version: 2.0.0
+
 paths:
-  /order/{orderId}/price/{amount}:
-    get:
+  /v2/order/{orderId}:
+    post:
       tags:
         - order
-      summary: Derive an address and start waiting for the amount
-      description: This endpoint idempotently derives and address and initializes payment monitoring for the specified amount
+      summary: Derive an address for the specified order, or check/update the status if it already exists
+      description: |-
+        This endpoint idempotently derives and address and initializes payment monitoring for the specified amount
+
+        The request method is POST, so no intermediaries would be caching responses;
+        `orderID` is included into the path to allow some http-proxy level manipulation, like adding a prefix for the specific shop on successful auth.
+
+        All other parameters are passed as query parameters, and are optional (can be omitted in the subsequent requests, if we only care about checking the order status).
       parameters:
         - name: orderId
           in: path
@@ -27,50 +28,389 @@ paths:
           required: true
           schema:
             type: string
+            format: float
         - name: amount
-          in: path
-          description: Amount (in Plancks) to be paid. After reaching this amount Kalatori will initiate a payout to the destination address and will report the order as paid to the shop
-          required: true
+          in: query
+          description: |-
+            Amount (in selected currency; denominated, **not** in Plancks) to be paid. After reaching this amount Kalatori will initiate a payout 
+            to the destination address and will report the order as paid to the shop.
+
+            This parameter can be skipped on subsequent requests, in which case the previous amount will be used.
+            If skipped in the original request, error 400 will be returned.
+          required: false
           schema:
             type: number
+        - name: currency
+          in: query
+          description: |-
+            Currency (human-readable ticker, one of the values listed in the `/status::supported_currencies`) specifying the currency to wait for the payment in.
+
+            If no currency is specified, but `amount` is present, server will return error 400.
+          required: false
+          schema:
+            type: string
+        - name: callback
+          in: query
+          description: |-
+            URL to be called when the order is paid.
+            The URL will receive a POST request with 'OrderStatus'-compliant JSON object on each transaction reaching (or leaving) this order's payment account.
+
+            If omitted in the initial request, there will be no callback URL set for the order.
+            If omitted in subsequent requests, the previous callback URL will be used; if the callback URL is different, the previous one will be replaced.
+            Set the callback URL to an empty string to remove the callback URL.
+          required: false
+          schema:
+            type: string
+            format: url
+
       responses:
-        '201':
-          description: Order created
+      
+        '200':
+          description: |-
+            Order already exists; if the amount is different, the order has been updated 
+            to the new amount and currency successfully.
+            
+            New values are returned in the response.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ServerResponse'
-              example: {
-                "pay_account": "0x70fd572d821ef38c4d354516353ec591fbd77e91fc4caf61c197d90b0f8ccd12",
-                "price": 100000000000,
-                "recipient": "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
-                "order": "myStore_1337",
-                "wss": "wss://node-polkadot.zymologia.fi:443",
-                "mul": 10,
-                "result": "waiting",
-                "version": "0.1.0"
-              }
+                $ref: '#/components/schemas/OrderStatus'
+        '201':
+          description: Order created. Response is similar to the `200` one
+        '400':
+          description: |-
+            Some invalid parameters have been passed, e.g. currency is not supported.
+
+            <TODO>: specify the format of the error response
+        '409':
+          description: |-
+            Order has already been processed with different parameters (amount/currency), and cannot be updated with a new amount.
+
+            Returns the original order status in the response (which cannot be modified anymore).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderStatus'
+
+
+  /v2/status/{orderId}/forceWithdrawal:
+    post:
+      tags:
+        - order
+      summary: Force the withdrawal of the specified order
+      description: |-
+        This endpoint is used by the shop admins to acknowledge the excessive/complicated payment
+        and initiate a forceful full withdrawal (via `transferAll` or an analogous call) to the
+        specified withdrawal address.
+
+        The intention is to mark order as completed on Kalatori side, and then to handle the return manually
+        from the withdrawal account.
+
+      responses:
+        '201':
+          description: |-
+            Order has been marked as completed in the daemon and the full forced withdrawal initiated.
+
+            The response is a full order status object, which should include the (probably not yet finalized) withdrawal transaction.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderStatus'
+        '400':
+          description: |-
+            There are some errors which prevent the withdrawal from happening, e.g. server misconfiguration or Existential Deposit weirdness.
+
+            We're returning full order status in the response, which should include the error message (in the `message` field)
+            and enough additional context (transactions, currency info) for troubleshooting.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderStatus'
+
+  /v2/status:
+    get:
+      summary: Get the general configuration of the daemon
+      description: |-
+        Get the status and configuration of the server.
+
+        This endpoint is also used to check the server status and the supported currencies.
+      responses:
+        '200':
+          description: OK
+          headers: # Should never be cached
+            Cache-Control:
+              description: Should be set to `no-store` to prevent caching
+              schema:
+                type: string
+                enum: [no-store]
+              required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerStatus'
+
+  /v2/health:
+    get:
+      summary: Get the health of the server
+      description: |-
+        Returns the health status of the server, including the all of the connected RPC endpoints.
+      responses:
+        '200':
+          description: OK
+          headers: # Should never be cached
+            Cache-Control:
+              description: Should be set to `no-store` to prevent caching
+              schema:
+                type: string
+                enum: [no-store]
+              required: true
+
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerHealth'
+
+  /v2/audit:
+    get:
+      tags:
+        - <unimplemented>
+      description: |-
+        Get the list of all past orders, payments and the associated transactions (including automatic refunds, if any).
+
+        Since we haven't agreed on the format yet, this endpoint is not implemented and should return `501` with no content till further notice.
+      responses:
+        '501':
+          description: |-
+            This endpoint will eventually return some meaningful form of all the past orders, payments and 
+            the associated transactions (including automatic refunds, if any).
+
+            Since we haven't agreed on the format yet, this endpoint is not implemented.
  
 components:
   schemas:
-    ServerResponse:
+    OrderStatus:
       type: object
       properties:
-        pay_account:
-          type: string
-        price:
-          type: integer
-          format: int64
-        recipient:
-          type: string
         order:
           type: string
-        wss:
-          type: url
-        mul:
-          type: integer
-          format: u8
-        result:
+        payment_status:
           type: string
+          enum: [pending, paid, unknown]
+          description: |-
+             - `pending` means that the address had been created, and the daemon is expecting for payment to happen
+             - `paid` occurs immediately after the finalized payment transaction is detected by the daemon
+             - `unknown` is only used when "bare" (only `orderId`, without payment info) request happened, but there's no such order in the daemon's database
+        withdrawal_status:
+          type: string
+          enum: [waiting, failed, completed]
+          description: |-
+            Status of the order payment withdrawal after the full payment is registered.
+
+            - `waiting` means that the order is still waiting for the payment to reach the specified amount
+            - `failed` means that the withdrawal transactions have failed for some reason; `message` would specify the details; `transactions` array would contain the failed transactions (if any)
+            - `completed` means that the order has been paid and the payout has been initiated to the recipient address, with any potential excesses successfully returned to their original source
+        message:
+          type: string
+          description: |-
+            Human-readable message, explaining the status of the order.
+            Should be present if `status` is `"failed"`, and optional otherwise.
+        payment_account:
+          type: string
+          format: ss58
+          description: |-
+            Polkadot address which would be used to wait for the payment to reach the specified amount.
+        amount:
+          type: number
+          format: float
+        currency:
+          $ref: '#/components/schemas/CurrencyInfo'
+        callback:
+          type: string
+          format: url
+          description: |-
+            URL to be called when the order status will change
+        recipient:
+          type: string
+          format: ss58
+          description: |-
+            Polkadot address which would receive the payout after the order is paid.
+        transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionInfo'
+
+    ServerStatus:
+      type: object
+      description: |-
+        Configuration status of the server: version, supported currencies, etc.
+      properties:
+        server_info:
+          $ref: '#/components/schemas/ServerInfo'
+        supported_currencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/CurrencyInfo'
+
+    ServerHealth:
+      type: object
+      description: |-
+        Health of the server.
+      properties:
+        server_info:
+          $ref: '#/components/schemas/ServerInfo'
+        connected_rpcs:
+          type: array
+          items:
+            type: object
+            properties:
+              rpc_url:
+                type: string
+                format: url
+              chain_name:
+                type: string
+                description: |-
+                  Human-readable name of the chain, like `Polkadot` or `AssetHub`.
+              status:
+                type: string
+                enum: [ok, degraded, critical]
+                description: |-
+                  Status of the RPC endpoint.
+                  `ok` means that the endpoint is reachable and is expected to work.
+                  `degraded` means that the endpoint is reachable right now, but there are (or recently were) some issues with connectivity or RPC responses.
+                  `critical` means that the endpoint is unreachable and cannot be used.
+        status:
+          type: string
+          enum: [ok, degraded, critical]
+          description: |-
+            Overall status of the server.
+             - `ok` means that the server is reachable and is expected to work.
+             - `degraded` means that either some of the RPCs are not reachable, or there are other internal server issues which don't stop the whole operation, but are causing some reliability/performance issues. If it's still possible to reliably generate payment accounts for new orders, the status should be `degraded`.
+             - `critical` means either that the server had encountered an unrecoverable error, or otherwise cannot respond with addresses for new orders.
+
+    CurrencyInfo:
+      type: object
+      properties:
+        currency:
+          type: string
+          description: |-
+            Human-readable ticker of the currency, like `DOT` or `USDC`.
+            Should be unique across all supported currencies.
+            Should be used to identify the currency in the `order` and `status` endpoints.
+        chain_name:
+          type: string
+          description: |-
+            Human-readable name of the chain, like `Polkadot` or `AssetHub`.
+        kind:
+          type: string
+          enum: [native, asset]
+          description: |-
+            Used to distinguish between "native" currencies (using the `balances` pallet) and assets (using the `assets` pallet).
+        decimals:
+          type: integer
+          minimum: 0
+          maximum: 20
+          description: |-
+            Number of decimal places in the currency. 
+            Polkadot has 10, Kusama has 12; 20 is an arbitrarily-chosen upper bound which is not expected to be exceeded in the real world.
+        rpc_url:
+          type: string
+          format: url
+          description: |-
+            URL of the RPC endpoint to be used to query the balance of the currency, expected to be a WSS-enabled.
+            Passed to the client-side JavaScript for frontend chain interactions (most importantly — for checking the balances and submitting the transactions).
+        asset_id:
+          type: integer
+          description: |-
+            ID of the asset in the `assets` pallet.
+            Should not be provided iff `kind` is `"native"`.
+      required:
+        - currency
+        - chain_name
+        - kind
+        - decimals
+        - rpc_url
+  
+    ServerInfo:
+      type: object
+      properties:
         version:
           type: string
+          description: |-
+            Version of the daemon software.
+
+            Expected to follow semver and be incremented on every release.
+            Mostly useful when debugging issues with the daemon.
+        instance_id:
+          type: string
+          description: |-
+            Unique identifier of the running instance.
+            Can be used to distinguish between different instances of the same daemon.
+
+            Generated randomly (ideally — from a dictionary of words) at the first start of the daemon and recorded in the database
+        kalatori_remark:
+          type: string
+          description: |-
+            Verbatim copy of the `KALATORI_REMARK` environment variable. Can be absent if the variable is not set.
+      required:
+        - version
+        - instance_id
+
+    TransactionInfo:
+      type: object
+      properties:
+        block_number:
+          type: integer
+          description: |-
+            Block number of the transaction.
+            Together with `position_in_block` should be used to uniquely identify the finalized transaction on the blockchain, e.g. for block explorers.
+        position_in_block:
+          type: integer
+          description: |-
+            Position of the transaction within the block.
+            Together with `block_number` should be used to uniquely identify the finalized transaction on the blockchain, e.g. for block explorers.
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the transaction as recorded in the block, in the ISO 8601 format.
+        transaction_bytes:
+          type: string
+          format: hex
+          description: |-
+            Hex-encoded bytes of the transaction.
+            Useful troubleshooting transactions which don't get included in the block
+        sender:
+          type: string
+          format: ss58
+          description: |-
+            Polkadot address of the sender.
+        recipient:
+          type: string
+          format: ss58
+          description: |-
+            Polkadot address of the recipient.
+        amount:
+          type: number
+          format: float
+          description: |-
+            Human-readable amount transferred in the transaction.
+
+            <TODO>: how to handle `transferAll`?
+        currency:
+          $ref: '#/components/schemas/CurrencyInfo'
+        status:
+          type: string
+          enum: [pending, finalized, failed]
+          description: |-
+            Status of the transaction.
+
+            Should be `pending` if the transaction is not included in the chain yet (but had already been sent by the daemon).
+            `finalized` only happens on the **successful** execution of the transaction, `failed` is used otherwise (or if the transaction fails some pre-flight checks)
+
+            If transaction is `finalized`, `block_number` and `position_in_block` fields should be present.
+      required:
+        - transaction_bytes
+        - sender
+        - recipient
+        - amount
+        - currency
+        - status
