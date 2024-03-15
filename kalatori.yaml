@@ -238,6 +238,8 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TransactionInfo'
+        server_info:
+          $ref: '#/components/schemas/ServerInfo'
 
     ServerStatus:
       type: object
@@ -347,6 +349,12 @@ components:
             Can be used to distinguish between different instances of the same daemon.
 
             Generated randomly (ideally — from a dictionary of words) at the first start of the daemon and recorded in the database
+        debug:
+          type: boolean
+          description: |-
+            Debug mode should be enabled when the daemon runs against a testnet (like Westend) or a local development chain (e.g. proxied via Chopsticks).
+
+            This value is communicated to the client-side JavaScript and can be used to enable additional logging and debugging features.
         kalatori_remark:
           type: string
           description: |-
