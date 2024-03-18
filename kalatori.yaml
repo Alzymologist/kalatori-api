@@ -61,7 +61,7 @@ paths:
           required: false
           schema:
             type: string
-            format: url
+            format: uri
 
       responses:
       
@@ -222,11 +222,13 @@ paths:
                     chain_name: "assethub-polkadot"
                     kind: "asset"
                     asset_id: 1984
+                    decimals: 6
                     rpc_url: "wss://assethub-polkadot-rpc.polkadot.io"
                   - currency: "USDC"
                     chain_name: "assethub-polkadot"
                     kind: "asset"
                     asset_id: 1337
+                    decimals: 6
                     rpc_url: "wss://assethub-polkadot-rpc.polkadot.io"
 
   /v2/health:
@@ -320,7 +322,7 @@ components:
           $ref: '#/components/schemas/CurrencyInfo'
         callback:
           type: string
-          format: url
+          format: uri
           description: |-
             URL to be called when the order status will change
         recipient:
@@ -361,7 +363,7 @@ components:
             properties:
               rpc_url:
                 type: string
-                format: url
+                format: uri
               chain_name:
                 type: string
                 description: |-
@@ -413,7 +415,7 @@ components:
             Polkadot has 10, Kusama has 12; 20 is an arbitrarily-chosen upper bound which is not expected to be exceeded in the real world.
         rpc_url:
           type: string
-          format: url
+          format: uri
           description: |-
             URL of the RPC endpoint to be used to query the balance of the currency, expected to be a WSS-enabled.
             Passed to the client-side JavaScript for frontend chain interactions (most importantly — for checking the balances and submitting the transactions).
