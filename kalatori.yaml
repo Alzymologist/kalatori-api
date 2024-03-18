@@ -75,6 +75,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OrderStatus'
+              example:
+                order: "123456"
+                payment_status: "pending"
+                withdrawal_status: "waiting"
+                payment_account: "14E5nqKAp3oAJcmzgZhUD2RcptBeUBScxKHgJKU4HPNcKVf3" # bottom drive obey lake curtain smoke basket hold race lonely fit walk//Bob
+                amount: 1.5
+                currency:
+                  currency: "DOT"
+                  chain_name: "polkadot"
+                  kind: "native"
+                  decimals: 10
+                  rpc_url: "wss://rpc.polkadot.io"
+                callback: "http://localhost:3000/api/kalatori/orders"
+                recipient: "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" # bottom drive obey lake curtain smoke basket hold race lonely fit walk//Alice
+                transactions: []
+                server_info:
+                  version: "0.2.0"
+                  instance_id: "cunning-garbo"
+                  debug: true
+                  kalatori_remark: "DEBUG=true;"
+
+            
         '201':
           description: Order created. Response is similar to the `200` one
         
@@ -98,10 +120,10 @@ paths:
                       type: string
                       description: |-
                         Human-readable message explaining the error.
-                  example: [
-                    {"parameter":"amount", "message": "'amount' can't be blank if 'currency' is specified"},
-                    { "parameter": "currency", "message": "Currency is not not supported"},
-                    {"parameter":"callback", "message":"'wwss://example.com' is not a valid callback URL" }]
+              example: [
+                {"parameter":"amount", "message": "'amount' can't be blank if 'currency' is specified"},
+                { "parameter": "currency", "message": "Currency is not not supported"},
+                {"parameter":"callback", "message":"'wwss://example.com' is not a valid callback URL" }]
 
         '409':
           description: |-
@@ -322,7 +344,10 @@ components:
         chain_name:
           type: string
           description: |-
-            Human-readable name of the chain, like `Polkadot` or `AssetHub`.
+            Human-readable name of the chain, like `polkadot` or `assethub-kusama`.
+
+            Configured through the Kalatori daemon configuration;
+            should match the subdomain in the subscan.io naming scheme and might be used in the admin UI to generate the block explorer links
         kind:
           type: string
           enum: [native, asset]
