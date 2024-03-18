@@ -191,6 +191,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerStatus'
+              example:
+                server_info:
+                  version: "0.2.0"
+                  instance_id: "cunning-garbo"
+                  debug: true
+                  kalatori_remark: "DEBUG=true;"
+                supported_currencies:
+                  - currency: "DOT"
+                    chain_name: "polkadot"
+                    kind: "native"
+                    decimals: 10
+                    rpc_url: "wss://rpc.polkadot.io"
+                  - currency: "USDT"
+                    chain_name: "assethub-polkadot"
+                    kind: "asset"
+                    asset_id: 1984
+                    rpc_url: "wss://assethub-polkadot-rpc.polkadot.io"
+                  - currency: "USDC"
+                    chain_name: "assethub-polkadot"
+                    kind: "asset"
+                    asset_id: 1337
+                    rpc_url: "wss://assethub-polkadot-rpc.polkadot.io"
 
   /v2/health:
     get:
@@ -212,6 +234,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerHealth'
+              example:
+                server_info:
+                  version: "0.2.0"
+                  instance_id: "cunning-garbo"
+                  debug: true
+                  kalatori_remark: "DEBUG=true;"
+                connected_rpcs:
+                  - rpc_url: "wss://rpc.polkadot.io"
+                    chain_name: "polkadot"
+                    status: "ok"
+                  - rpc_url: "wss://assethub-polkadot-rpc.polkadot.io"
+                    chain_name: "assethub-polkadot"
+                    status: "ok"
+                status: "ok"
 
   /v2/audit:
     get:
