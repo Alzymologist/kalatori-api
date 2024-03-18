@@ -77,11 +77,32 @@ paths:
                 $ref: '#/components/schemas/OrderStatus'
         '201':
           description: Order created. Response is similar to the `200` one
+        
         '400':
           description: |-
             Some invalid parameters have been passed, e.g. currency is not supported.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    parameter:
+                      type: string
+                      enum: [orderId, amount, currency, callback]
+                      description: |-
+                        Name of the parameter which caused the error.
+                        If  multiple errors for the same parameter have been detected in the request, each of them will be listed as a separate array element.
+                    message:
+                      type: string
+                      description: |-
+                        Human-readable message explaining the error.
+                  example: [
+                    {"parameter":"amount", "message": "'amount' can't be blank if 'currency' is specified"},
+                    { "parameter": "currency", "message": "Currency is not not supported"},
+                    {"parameter":"callback", "message":"'wwss://example.com' is not a valid callback URL" }]
 
-            <TODO>: specify the format of the error response
         '409':
           description: |-
             Order has already been processed with different parameters (amount/currency), and cannot be updated with a new amount.
@@ -402,7 +423,7 @@ components:
           description: |-
             Human-readable amount transferred in the transaction.
 
-            <TODO>: how to handle `transferAll`?
+            TODO: how to handle `transferAll`?
         currency:
           $ref: '#/components/schemas/CurrencyInfo'
         status:
