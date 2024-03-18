@@ -496,12 +496,15 @@ components:
           description: |-
             Polkadot address of the recipient.
         amount:
-          type: number
-          format: float
+          anyOf:
+            - type: number
+              format: float
+            - type: string
+              enum: [all]
           description: |-
-            Human-readable amount transferred in the transaction.
+            Human-readable amount transferred in the transaction (not accounting for the transaction fees).
+            Numeric value should be a _float_ denominated in the title currency (not in Plancks), `"all"` as a _string_ is passed if it's a `transferAll` or an analogous withdrawal.
 
-            TODO: how to handle `transferAll`?
         currency:
           $ref: '#/components/schemas/CurrencyInfo'
         status:
