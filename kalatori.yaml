@@ -309,7 +309,7 @@ components:
           type: string
           description: |-
             Human-readable message, explaining the status of the order.
-            Should be present if `status` is `"failed"`, and optional otherwise.
+            Should be present if `withdrawal_status` is `"failed"`, and optional otherwise.
         payment_account:
           type: string
           format: ss58
@@ -509,7 +509,7 @@ components:
           $ref: '#/components/schemas/CurrencyInfo'
         status:
           type: string
-          enum: [pending, finalized, failed]
+          enum: [pending, paid, failed]
           description: |-
             Status of the transaction.
 
