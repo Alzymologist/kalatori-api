@@ -20,7 +20,7 @@ paths:
         The request method is POST, so no intermediaries would be caching responses;
         `orderID` is included into the path to allow some http-proxy level manipulation, like adding a prefix for the specific shop on successful auth.
 
-        All other parameters are passed as query parameters, and are optional (can be omitted in the subsequent requests, if we only care about checking the order status).
+        All other parameters are passed in a JSON payload
       parameters:
         - name: orderId
           in: path
@@ -29,39 +29,42 @@ paths:
           schema:
             type: string
             format: float
-        - name: amount
-          in: query
-          description: |-
-            Amount (in selected currency; denominated, **not** in Plancks) to be paid. After reaching this amount Kalatori will initiate a payout 
-            to the destination address and will report the order as paid to the shop.
+      requestBody:
+        description: Should be passed if we're creating/updating the order, and can be
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  description: |-
+                    Amount (in selected currency; denominated, **not** in Plancks) to be paid. After reaching this amount Kalatori will initiate a payout 
+                    to the destination address and will report the order as paid to the shop.
 
-            This parameter can be skipped on subsequent requests, in which case the previous amount will be used.
-            If skipped in the original request, error 400 will be returned.
-          required: false
-          schema:
-            type: number
-        - name: currency
-          in: query
-          description: |-
-            Currency (human-readable ticker, one of the values listed in the `/status::supported_currencies`) specifying the currency to wait for the payment in.
+                    This parameter can be skipped on subsequent requests, in which case the previous amount will be used.
+                    If skipped in the original request, error 400 will be returned.
+                  type: number
+                  example: 17.99
 
-            If no currency is specified, but `amount` is present, server will return error 400.
-          required: false
-          schema:
-            type: string
-        - name: callback
-          in: query
-          description: |-
-            URL to be called when the order is paid.
-            The URL will receive a POST request with 'OrderStatus'-compliant JSON object on each transaction reaching (or leaving) this order's payment account.
+                currency:
+                  description: |-
+                    Currency (human-readable ticker, one of the values listed in the `/status::supported_currencies`) specifying the currency to wait for the payment in.
 
-            If omitted in the initial request, there will be no callback URL set for the order.
-            If omitted in subsequent requests, the previous callback URL will be used; if the callback URL is different, the previous one will be replaced.
-            Set the callback URL to an empty string to remove the callback URL.
-          required: false
-          schema:
-            type: string
-            format: uri
+                    If no currency is specified, but `amount` is present, server will return error 400.
+                  type: string
+                  example: "USDC"
+
+                callback:
+                  description: |-
+                    URL to be called when the order is paid.
+                    The URL will receive a POST request with 'OrderStatus'-compliant JSON object on each transaction reaching (or leaving) this order's payment account.
+
+                    If omitted in the initial request, there will be no callback URL set for the order.
+                    If omitted in subsequent requests, the previous callback URL will be used; if the callback URL is different, the previous one will be replaced.
+                    Set the callback URL to an empty string to remove the callback URL.
+                  type: string
+                  format: uri
+                  example: "https://api.shop.example.com/webhooks/kalatori/daemon_callback?order=12345&hmac=055f479a461db45d02d6ec192de7f4a3"
 
       responses:
       
