@@ -216,18 +216,18 @@ paths:
                   debug: true
                   kalatori_remark: "DEBUG=true;"
                 supported_currencies:
-                  - currency: "DOT"
+                  DOT:
                     chain_name: "polkadot"
                     kind: "native"
                     decimals: 10
                     rpc_url: "wss://rpc.polkadot.io"
-                  - currency: "USDT"
+                  USDT:
                     chain_name: "assethub-polkadot"
                     kind: "asset"
                     asset_id: 1984
                     decimals: 6
                     rpc_url: "wss://assethub-polkadot-rpc.polkadot.io"
-                  - currency: "USDC"
+                  USDC:
                     chain_name: "assethub-polkadot"
                     kind: "asset"
                     asset_id: 1337
@@ -348,9 +348,17 @@ components:
         server_info:
           $ref: '#/components/schemas/ServerInfo'
         supported_currencies:
-          type: array
-          items:
-            $ref: '#/components/schemas/CurrencyInfo'
+          type: object
+          additionalProperties: 
+            $ref: '#/components/schemas/CurrencyProperties'
+          example: 
+            USDC:
+              chain_name: "assethub-polkadot"
+              kind: "asset"
+              asset_id: 1337
+              decimals: 6
+              rpc_url: "wss://assethub-polkadot-rpc.polkadot.io"
+              
 
     ServerHealth:
       type: object
@@ -389,14 +397,20 @@ components:
              - `critical` means either that the server had encountered an unrecoverable error, or otherwise cannot respond with addresses for new orders.
 
     CurrencyInfo:
+      allOf:
+        - type: object
+          properties:
+            currency:
+              type: string
+              description: |-
+                Human-readable ticker of the currency, like `DOT` or `USDC`.
+                Should be unique across all supported currencies.
+                Should be used to identify the currency in the `order` and `status` endpoints.
+        - $ref: "#/components/schemas/CurrencyProperties"
+
+    CurrencyProperties:
       type: object
       properties:
-        currency:
-          type: string
-          description: |-
-            Human-readable ticker of the currency, like `DOT` or `USDC`.
-            Should be unique across all supported currencies.
-            Should be used to identify the currency in the `order` and `status` endpoints.
         chain_name:
           type: string
           description: |-
@@ -428,7 +442,6 @@ components:
             ID of the asset in the `assets` pallet.
             Should not be provided iff `kind` is `"native"`.
       required:
-        - currency
         - chain_name
         - kind
         - decimals
