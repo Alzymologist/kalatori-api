@@ -38,7 +38,7 @@ paths:
               properties:
                 amount:
                   description: |-
-                    Amount (in selected currency; denominated, **not** in Plancks) to be paid. After reaching this amount Kalatori will initiate a payout 
+                    Amount (in selected currency; denominated, **not** in Plancks) to be paid. After reaching this amount Kalatori will initiate a payout
                     to the destination address and will report the order as paid to the shop.
 
                     This parameter can be skipped on subsequent requests, in which case the previous amount will be used.
@@ -67,12 +67,12 @@ paths:
                   example: "https://api.shop.example.com/webhooks/kalatori/daemon_callback?order=12345&hmac=055f479a461db45d02d6ec192de7f4a3"
 
       responses:
-      
+
         '200':
           description: |-
-            Order already exists; if the amount is different, the order has been updated 
+            Order already exists; if the amount is different, the order has been updated
             to the new amount and currency successfully.
-            
+
             New values are returned in the response.
           content:
             application/json:
@@ -114,10 +114,10 @@ paths:
                   debug: true
                   kalatori_remark: "DEBUG=true;"
 
-            
+
         '201':
           description: Order created. Response is similar to the `200` one
-        
+
         '400':
           description: |-
             Some invalid parameters have been passed, e.g. currency is not supported.
@@ -142,6 +142,10 @@ paths:
                 {"parameter":"amount", "message": "'amount' can't be blank if 'currency' is specified"},
                 { "parameter": "currency", "message": "Currency is not not supported"},
                 {"parameter":"callback", "message":"'wwss://example.com' is not a valid callback URL" }]
+
+        '404':
+          description: |-
+            When used in a "shorthand" mode (only `orderId` is passed), and there's no such order in the daemon's database.
 
         '409':
           description: |-
@@ -280,11 +284,11 @@ paths:
       responses:
         '501':
           description: |-
-            This endpoint will eventually return some meaningful form of all the past orders, payments and 
+            This endpoint will eventually return some meaningful form of all the past orders, payments and
             the associated transactions (including automatic refunds, if any).
 
             Since we haven't agreed on the format yet, this endpoint is not implemented.
- 
+
 components:
   schemas:
     OrderStatus:
@@ -349,16 +353,16 @@ components:
           $ref: '#/components/schemas/ServerInfo'
         supported_currencies:
           type: object
-          additionalProperties: 
+          additionalProperties:
             $ref: '#/components/schemas/CurrencyProperties'
-          example: 
+          example:
             USDC:
               chain_name: "assethub-polkadot"
               kind: "asset"
               asset_id: 1337
               decimals: 6
               rpc_url: "wss://assethub-polkadot-rpc.polkadot.io"
-              
+
 
     ServerHealth:
       type: object
@@ -428,7 +432,7 @@ components:
           minimum: 0
           maximum: 20
           description: |-
-            Number of decimal places in the currency. 
+            Number of decimal places in the currency.
             Polkadot has 10, Kusama has 12; 20 is an arbitrarily-chosen upper bound which is not expected to be exceeded in the real world.
         rpc_url:
           type: string
@@ -446,7 +450,7 @@ components:
         - kind
         - decimals
         - rpc_url
-  
+
     ServerInfo:
       type: object
       properties:
