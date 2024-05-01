@@ -289,6 +289,26 @@ paths:
 
             Since we haven't agreed on the format yet, this endpoint is not implemented.
 
+  /v2/order/{orderId}/investigate:
+    post:
+      tags:
+        - <unimplemented>
+      description: |-
+        The daemon is expected to mark the order as `failed` after a certain (customizable) amount of time passed;
+        it will stop proactively monitoring such a payment address for any further transactions.
+
+        Since it's possible that the payment will still arrive after such a long delay, the shop admin can
+        use this endpoint to manually initiate a full scan of the order's payment address history.
+        The scan is expected to be asynchronous and will use the callback URL to report the results.
+
+      responses:
+        '501':
+          description: |-
+            This endpoint will eventually return `201` with no content on successful initiation of the investigation
+            (as well as appropriate error codes for the invalid requests).
+
+            This is going to be just a placeholder till we have a proper investigations implementation in place.
+
 components:
   schemas:
     OrderStatus:
