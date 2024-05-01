@@ -396,20 +396,21 @@ components:
           type: string
         payment_status:
           type: string
-          enum: [pending, paid, unknown]
+          enum: [pending, paid, timed_out]
           description: |-
              - `pending` means that the address had been created, and the daemon is expecting for payment to happen
              - `paid` occurs immediately after the finalized payment transaction is detected by the daemon
-             - `unknown` is only used when "bare" (only `orderId`, without payment info) request happened, but there's no such order in the daemon's database
+             - `timed_out` is used when the payment is not received within the (daemon-configurable) specified time frame, and the order is considered failed.
         withdrawal_status:
           type: string
-          enum: [waiting, failed, completed]
+          enum: [waiting, failed, completed, none]
           description: |-
             Status of the order payment withdrawal after the full payment is registered.
 
             - `waiting` means that the order is still waiting for the payment to reach the specified amount
             - `failed` means that the withdrawal transactions have failed for some reason; `message` would specify the details; `transactions` array would contain the failed transactions (if any)
             - `completed` means that the order has been paid and the payout has been initiated to the recipient address, with any potential excesses successfully returned to their original source
+            - `none` is used when the order is not expected to be paid out (e.g. when the order is marked as `timed_out`)
         message:
           type: string
           description: |-
