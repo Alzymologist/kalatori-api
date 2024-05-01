@@ -10,7 +10,7 @@ info:
     (which where necessary proxies the requests to the Kalatori daemon), while _offsite_ being a static page (hosted by either the daemon itself
     or on a CDN) which talks to the daemon directly via a namespace-separated public endpoint `/public/v2`.
 
-  version: 2.0.0
+  version: 2.1.0
 
 paths:
   /v2/order/{orderId}:
