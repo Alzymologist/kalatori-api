@@ -6,7 +6,11 @@ info:
 
     Each order is used to derive a unique Polkadot address (using account derivation paths), which is used to map payment to the particular order ID.
 
-  version: 2.0.0
+    This API supports both **embedded** and **offsite** payment modes, where _embedded_ widget only talks to the shop's backend
+    (which where necessary proxies the requests to the Kalatori daemon), while _offsite_ being a static page (hosted by either the daemon itself
+    or on a CDN) which talks to the daemon directly via a namespace-separated public endpoint `/public/v2`.
+
+  version: 2.1.0
 
 paths:
   /v2/order/{orderId}:
@@ -192,6 +196,80 @@ paths:
               schema:
                 $ref: '#/components/schemas/OrderStatus'
 
+  /public/v2/payment/{paymentAccount}:
+    post:
+      summary: Get the order status by the payment account
+      description: |-
+        A separate payment status endpoint, to be exposed publicly and consumed by the "offsite payment" static frontent.
+        It uses payment_account parameter to identify the order, instead of orderId, to prevent potential enumeration attacks.
+
+        This endpoint is located separately, to allow easy http-level filtering and CORS setup on the inevitable http(s) middleware.
+
+        _Note to implementers_: this endpoint **SHOULD NOT** include the `callback` URL in the response object, to avoid
+        leaking potentially sensitive details (authentication parameters, internal IP addresses etc) of the shop backend to the frontend.
+
+        _Note to implementers_: this endpoint should respond with `200` for a reasonable time after the order's finalization, since
+        intermittent network issues might prevent the frontend from receiving the `redirect_url` in time, breaking the flow.
+      tags:
+        - public
+
+      parameters:
+        - name: paymentAccount
+          in: path
+          description: Polkadot address to be used to identify the order, as returned by the `/order` endpoint in the `payment_account` field
+          required: true
+          schema:
+            type: string
+            format: ss58
+
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderStatus'
+              example:
+                order: "123456"
+                payment_status: "paid"
+                withdrawal_status: "waiting"
+                payment_account: "14E5nqKAp3oAJcmzgZhUD2RcptBeUBScxKHgJKU4HPNcKVf3" # bottom drive obey lake curtain smoke basket hold race lonely fit walk//Bob
+                amount: 1.5
+                currency:
+                  currency: "DOT"
+                  chain_name: "polkadot"
+                  kind: "native"
+                  decimals: 10
+                  rpc_url: "wss://rpc.polkadot.io"
+                redirect_url: "https://shop.example.com/orders/123456"
+                recipient: "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" # bottom drive obey lake curtain smoke basket hold race lonely fit walk//Alice
+                transactions:
+                  - block_number: 123456
+                    position_in_block: 1
+                    timestamp: "2021-01-01T00:00:00Z"
+                    transaction_bytes: "0x1234567890abcdef"
+                    sender: "14Gjs1TD93gnwEBfDMHoCgsuf1s2TVKUP6Z1qKmAZnZ8cW5q" # bottom drive obey lake curtain smoke basket hold race lonely fit walk//Charlie
+                    recipient: "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" # bottom drive obey lake curtain smoke basket hold race lonely fit walk//Alice
+                    amount: 1.5
+                    currency:
+                      currency: "DOT"
+                      chain_name: "polkadot"
+                      kind: "native"
+                      decimals: 10
+                      rpc_url: "wss://rpc.polkadot.io"
+                    status: "finalized"
+
+                server_info:
+                  version: "0.2.0"
+                  instance_id: "cunning-garbo"
+                  debug: true
+                  kalatori_remark: "DEBUG=true;"
+
+        '404':
+          description: |-
+            Order can't be found by the `paymentAccount` specified — including the cases when the order has been already completed or failed.
+            Further investigation of the details in such cases is treated as a privileged action, and should be done via the `/order` APIs
+
   /v2/status:
     get:
       summary: Get the general configuration of the daemon
@@ -289,6 +367,26 @@ paths:
 
             Since we haven't agreed on the format yet, this endpoint is not implemented.
 
+  /v2/order/{orderId}/investigate:
+    post:
+      tags:
+        - <unimplemented>
+      description: |-
+        The daemon is expected to mark the order as `failed` after a certain (customizable) amount of time passed;
+        it will stop proactively monitoring such a payment address for any further transactions.
+
+        Since it's possible that the payment will still arrive after such a long delay, the shop admin can
+        use this endpoint to manually initiate a full scan of the order's payment address history.
+        The scan is expected to be asynchronous and will use the callback URL to report the results.
+
+      responses:
+        '501':
+          description: |-
+            This endpoint will eventually return `201` with no content on successful initiation of the investigation
+            (as well as appropriate error codes for the invalid requests).
+
+            This is going to be just a placeholder till we have a proper investigations implementation in place.
+
 components:
   schemas:
     OrderStatus:
@@ -298,20 +396,21 @@ components:
           type: string
         payment_status:
           type: string
-          enum: [pending, paid, unknown]
+          enum: [pending, paid, timed_out]
           description: |-
              - `pending` means that the address had been created, and the daemon is expecting for payment to happen
              - `paid` occurs immediately after the finalized payment transaction is detected by the daemon
-             - `unknown` is only used when "bare" (only `orderId`, without payment info) request happened, but there's no such order in the daemon's database
+             - `timed_out` is used when the payment is not received within the (daemon-configurable) specified time frame, and the order is considered failed.
         withdrawal_status:
           type: string
-          enum: [waiting, failed, completed]
+          enum: [waiting, failed, completed, none]
           description: |-
             Status of the order payment withdrawal after the full payment is registered.
 
             - `waiting` means that the order is still waiting for the payment to reach the specified amount
             - `failed` means that the withdrawal transactions have failed for some reason; `message` would specify the details; `transactions` array would contain the failed transactions (if any)
             - `completed` means that the order has been paid and the payout has been initiated to the recipient address, with any potential excesses successfully returned to their original source
+            - `none` is used when the order is not expected to be paid out (e.g. when the order is marked as `timed_out`)
         message:
           type: string
           description: |-
@@ -332,6 +431,36 @@ components:
           format: uri
           description: |-
             URL to be called when the order status will change
+
+        payment_page:
+          type: string
+          format: uri
+          description: |-
+            If our shop requires a separately-hosted payment page (for an "offsite payments" flow,
+            similarly to what [Shopify does](https://shopify.dev/docs/apps/payments/processing-overview#offsite-payments)), this URL should be used to redirect the user to the payment page.
+
+            This page is expected to be fully static, bundled with the daemon and either served by the daemon itself or put elsewhere
+            on CDN; this behaviour is customizable in the daemon config, and hosting the payment page externally would automatically set up
+            all the necessary CORS headers for the `/public/v2/payment` endpoint.
+
+            _Note to implementers_: our payment page uses `payment_account` to identify the order, instead of order ID.
+            This is done to prevent order IDs being exposed (and potentially manipulated) in the frontend.\
+            In order to render the full UI state on that page instantly (without querying the daemon's API first),
+            it's advised to add the `amount` and `currency` to the URL as query parameters, and to use them to pre-fill
+            the payment form (later to be updated from the daemon's API response, for the consistency's sake).
+
+        redirect_url:
+          type: string
+          format: uri
+          description: |-
+            When used in the "offsite payments" mode, daemon will notify the shop backend about the payment status changes
+            via the callback URL. The shop backend is then expected to return the redirect URL for the frontend to redirect
+            the user to. This is an optional field which is set to that URL as soon as it's received from the shop backend.
+
+            _Note to implementers_: it's assumed that the offline payments frontend will redirect to this URL as soon as it's set,
+            via Javascript. Further interactions with the `/public/v2/payment/` endpoint are not guaranteed, since the order might
+            get archived after successful withdrawal.
+
         recipient:
           type: string
           format: ss58
